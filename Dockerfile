@@ -24,7 +24,7 @@ MAINTAINER QuantConnect <contact@quantconnect.com>
 
 ################################
 # Option 2: Run Local Binaries:
-COPY ./Launcher/bin/Release /root/Lean/Launcher/bin/Release
+# COPY ./Launcher/bin/Release /root/Lean/Launcher/bin/Release
 #################################
 
 # Finally.

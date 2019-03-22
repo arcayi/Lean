@@ -17,6 +17,9 @@ RUN env TZ=UTC
 
 # Install OS Packages:
 # Misc tools for running Python.NET and IB inside a headless container.
+RUN cp /etc/apt/sources.list /etc/apt/sources.list.bak \
+  && sed -i s@/archive.ubuntu.com/@/mirrors.tuna.tsinghua.edu.cn/@g /etc/apt/sources.list \
+  && apt-get clean 
 RUN apt-get update && apt-get install -y git bzip2 unzip wget python3-pip python-opengl && \
     apt-get install -y clang cmake curl xvfb libxrender1 libxtst6 libxi6 libglib2.0-dev && \
 # Install R
@@ -30,17 +33,19 @@ RUN echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true 
     rm -rf /var/lib/apt/lists/* && rm -rf /var/cache/oracle-jdk8-installer
 
 # Install IB Gateway: Installs to ~/Jts
-RUN wget http://cdn.quantconnect.com/interactive/ibgateway-latest-standalone-linux-x64-v968.2d.sh && \
-    chmod 777 ibgateway-latest-standalone-linux-x64-v968.2d.sh && \
-    ./ibgateway-latest-standalone-linux-x64-v968.2d.sh -q && \
-    wget -O ~/Jts/jts.ini http://cdn.quantconnect.com/interactive/ibgateway-latest-standalone-linux-x64-v968.2d.jts.ini && \
-    rm ibgateway-latest-standalone-linux-x64-v968.2d.sh
+# RUN wget http://cdn.quantconnect.com/interactive/ibgateway-latest-standalone-linux-x64-v968.2d.sh && \
+RUN wget https://download.ibkr.com.cn/installers/ibgateway/stable-standalone/ibgateway-stable-standalone-linux-x64.sh && \
+    chmod 777 *.sh && \
+    ./ibgateway-stable-standalone-linux-x64.sh -q && \
+#     wget -O ~/Jts/jts.ini http://cdn.quantconnect.com/interactive/ibgateway-latest-standalone-linux-x64-v968.2d.jts.ini && \
+    rm ibgateway-stable-standalone-linux-x64.sh
 
 # Install IB Controller: Installs to ~/IBController
-RUN wget http://cdn.quantconnect.com/interactive/IBController-QuantConnect-3.2.0.4.zip && \
-    unzip IBController-QuantConnect-3.2.0.4.zip -d ~/IBController && \
+# RUN wget http://cdn.quantconnect.com/interactive/IBController-QuantConnect-3.2.0.4.zip && \
+RUN wget https://github.com/ib-controller/ib-controller/releases/download/3.4.0/IBController-3.4.0.zip && \
+    unzip IBController-3.4.0.zip -d ~/IBController && \
     chmod -R 777 ~/IBController && \
-    rm IBController-QuantConnect-3.2.0.4.zip
+    rm IBController-3.4.0.zip
 
 # Mono C# for LEAN:
 # From https://github.com/mono/docker/blob/master/
@@ -52,10 +57,15 @@ RUN echo "deb http://download.mono-project.com/repo/ubuntu stable-xenial/snapsho
 
 # Install miniconda and supported third party python packages
 ENV PATH="/opt/miniconda3/bin:${PATH}"
-RUN wget https://cdn.quantconnect.com/miniconda/Miniconda3-4.3.31-Linux-x86_64.sh && \
+
+
+RUN wget https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda/Miniconda3-4.3.31-Linux-x86_64.sh && \
     bash Miniconda3-4.3.31-Linux-x86_64.sh -b -p /opt/miniconda3 && \
     rm -rf Miniconda3-latest-Linux-x86_64.sh && \
     ln -s /opt/miniconda3/lib/libpython3.6m.so /usr/lib/libpython3.6m.so && \
+    conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/free/  && \
+    conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main/  && \
+    conda config --set show_channel_urls yes  && \
     conda update -y conda pip && \
     conda install -y python=3.6.6 && \
     conda install -y numpy=1.14.5 && \
@@ -72,6 +82,7 @@ RUN wget https://cdn.quantconnect.com/miniconda/Miniconda3-4.3.31-Linux-x86_64.s
 
 # Install TA-lib for python
 RUN wget http://cdn.quantconnect.com/ta-lib/ta-lib-0.4.0-src.tar.gz && \
+# RUN wget https://github.com/mrjbq7/ta-lib/archive/TA_Lib-0.4.17.tar.gz && \
     tar -zxvf ta-lib-0.4.0-src.tar.gz && cd ta-lib && \
     ./configure --prefix=/usr && make && make install && \
     pip install TA-lib
@@ -86,3 +97,28 @@ RUN git clone git://github.com/scikit-learn-contrib/py-earth.git && cd py-earth 
 
 # List all packages
 RUN conda list
+
+#################################
+# Option 1: Download from Master
+COPY . /tmp/Lean/
+# RUN \
+	# wget https://github.com/QuantConnect/Lean/archive/master.zip && \
+	# unzip master.zip -d /tmp/Lean && \
+    # mv -f /tmp/Lean/Lean-master/. /tmp/Lean/  && \
+WORKDIR /tmp/Lean 
+# RUN ls -l
+RUN \
+	sed -i 's/4.5/4.0/' Algorithm.VisualBasic/QuantConnect.Algorithm.VisualBasic.vbproj && \
+	# wget https://nuget.org/nuget.exe
+    apt-get update && apt-get install -y nuget
+RUN \
+    nuget restore QuantConnect.Lean.sln
+	# mono nuget.exe restore QuantConnect.Lean.sln -NonInteractive
+RUN \
+	mkdir -p /root/Lean/Launcher/bin/	&& \
+	xbuild QuantConnect.Lean.sln /property:Configuration=Debug  && \
+	mv -f /tmp/Lean/Launcher/bin/Debug /root/Lean/Launcher/bin/Debug && \
+	xbuild QuantConnect.Lean.sln /property:Configuration=Release  && \
+	mv -f /tmp/Lean/Launcher/bin/Release /root/Lean/Launcher/bin/Release && \
+	rm -rf /tmp/Lean/*
+#################################

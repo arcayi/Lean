@@ -18,12 +18,22 @@ RUN git clone https://github.com/QuantConnect/pythonnet && \
     python setup.py install && cd .. && rm -irf pythonnet
 
 # Install Lean/PythonToolbox
-RUN git clone https://github.com/QuantConnect/Lean.git && cd Lean/PythonToolbox && \
+# RUN git clone https://github.com/QuantConnect/Lean.git && \
+RUN mkdir -p Lean/  && \
+    pwd && \
+    ls -l
+ADD PythonToolbox/ Lean/PythonToolbox/
+RUN \
+    cd Lean/PythonToolbox #&& \
+RUN \
     python setup.py install && cd ../.. && rm -irf Lean
 
 #Install Jupyter and other packages
-RUN conda install -c conda-forge jupyterlab && \
-    conda clean -y --all
+# RUN conda config --add channels https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud/conda-forge/
+# RUN conda install jupyterlab
+RUN conda install -c conda-forge jupyterlab
+RUN conda clean -y --all
+COPY Jupyter/jupyter_notebook_config.py /root/.jupyter/jupyter_notebook_config.py
 
 #Install ICSharp (Jupyter C# Kernel)
 RUN wget https://cdn.quantconnect.com/icsharp/iCSharp.Kernel.zip && \
@@ -35,7 +45,7 @@ ENV WORK /root/Lean/Launcher/bin/Debug/
 ENV PYTHONPATH=${WORK}:${PYTHONPATH}
 
 # Copy Lean files to convenient locations
-COPY ./Launcher/bin/Debug/ ${WORK}
+# COPY ./Launcher/bin/Debug/ ${WORK}
 RUN rm -irf ${WORK}/*Python* && \
     find ${WORK} -type f -not -name '*.dll' -not -name '*.ipynb' -not -name '*.csx' -delete && \
     echo "{ \"data-folder\": \"/home/Data/\", \"composer-dll-directory\": \"$WORK\" }" > ${WORK}/config.json
@@ -44,7 +54,8 @@ EXPOSE 8888
 WORKDIR $WORK
 
 ENTRYPOINT [ "/usr/local/bin/tini", "--" ]
-CMD jupyter lab --ip='*' --port=8888 --no-browser --allow-root
+CMD jupyter lab --ip='0.0.0.0' --port=8888 --no-browser --allow-root
+# CMD jupyter lab --no-browser
 
 # Usage:
 # docker build -t quantconnect/lean:foundation -f DockerfileLeanFoundation .
